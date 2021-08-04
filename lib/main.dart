@@ -1,15 +1,34 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:ileaf_flutter_test/model/employee.dart';
+import 'package:ileaf_flutter_test/provider/employee_model.dart';
+import 'package:ileaf_flutter_test/screens/employee_detail_page.dart';
+import 'package:path/path.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
-  runApp(MyApp());
+  WidgetsFlutterBinding.ensureInitialized();
+
+  SystemChrome.setPreferredOrientations(
+      [DeviceOrientation.portraitUp, DeviceOrientation.portraitDown]);
+  //SharedPreferences _sharedPreferences = await SharedPreferences.getInstance();
+
+  runApp(MultiProvider(providers: [
+    ChangeNotifierProvider(
+      create: (_) => EmployeeModel(),
+    ),
+  ], child: MyApp()));
 }
 
 class MyApp extends StatelessWidget {
   // This widget is the root of your application.
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Flutter Demo',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
         // This is the theme of your application.
         //
@@ -22,7 +41,7 @@ class MyApp extends StatelessWidget {
         // is not restarted.
         primarySwatch: Colors.blue,
       ),
-      home: MyHomePage(title: 'Flutter Demo Home Page'),
+      home: MyHomePage(title: 'iLeaf Flutter Test'),
     );
   }
 }
@@ -46,21 +65,19 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+  bool isSearching = false;
+  TextEditingController _searchTextController = TextEditingController();
+  EmployeeModel _employeeModel;
 
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
+  @override
+  void initState() {
+    // TODO: implement initState
+    super.initState();
   }
 
   @override
   Widget build(BuildContext context) {
+    _employeeModel = Provider.of<EmployeeModel>(context);
     // This method is rerun every time setState is called, for instance as done
     // by the _incrementCounter method above.
     //
@@ -72,42 +89,139 @@ class _MyHomePageState extends State<MyHomePage> {
         // Here we take the value from the MyHomePage object that was created by
         // the App.build method, and use it to set our appbar title.
         title: Text(widget.title),
+        actions: [
+          if (!isSearching)
+            InkWell(
+              onTap: () {
+                searchEmployee('');
+              },
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 10, horizontal: 20),
+                child: Icon(Icons.refresh),
+              ),
+            ),
+          Padding(
+            padding: EdgeInsets.symmetric(vertical: 10, horizontal: 20),
+            child: AnimatedContainer(
+              duration: Duration(milliseconds: 400),
+              decoration: BoxDecoration(
+                  color: isSearching ? Colors.white : Colors.blue,
+                  borderRadius: BorderRadius.circular(20)),
+              width: isSearching ? 200 : 36,
+              height: 36,
+              curve: isSearching ? Curves.easeIn : Curves.bounceOut,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                //mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  Flexible(
+                    child: IconButton(
+                      icon: Icon(
+                        Icons.search,
+                        color: Colors.white,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          isSearching = !isSearching;
+                        });
+                      },
+                    ),
+                  ),
+                  isSearching
+                      ? Expanded(
+                          flex: 3,
+                          child: TextField(
+                            controller: _searchTextController,
+                            decoration: InputDecoration(
+                                border: InputBorder.none,
+                                contentPadding: EdgeInsets.only(bottom: 10),
+                                hintText: 'Search'),
+                          ),
+                        )
+                      : Container(),
+                  isSearching
+                      ? Flexible(
+                          child: IconButton(
+                            icon: Icon(
+                              Icons.send,
+                              color: Colors.blue,
+                            ),
+                            onPressed: () async {
+                              searchEmployee(_searchTextController.text.trim());
+                              FocusScope.of(context).requestFocus(FocusNode());
+                              setState(() {
+                                isSearching = false;
+                              });
+                            },
+                          ),
+                        )
+                      : Container()
+                ],
+              ),
+            ),
+          )
+        ],
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Invoke "debug painting" (press "p" in the console, choose the
-          // "Toggle Debug Paint" action from the Flutter Inspector in Android
-          // Studio, or the "Toggle Debug Paint" command in Visual Studio Code)
-          // to see the wireframe for each widget.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Text(
-              'You have pushed the button this many times:',
+      body: Consumer<EmployeeModel>(builder: (context, model, ind) {
+        if (model.isLoading)
+          return Center(
+            child: CircularProgressIndicator(),
+          );
+        if (model.subSetEmployees.isEmpty)
+          return Center(
+            child: Text('Employee List is empty'),
+          );
+        return ListView.separated(
+          itemBuilder: (context, index) {
+            return employeeTile(model.subSetEmployees[index], context);
+          },
+          separatorBuilder: (context, index) => Divider(),
+          itemCount: model.subSetEmployees.length,
+        );
+      }),
+      // This trailing comma makes auto-formatting nicer for build methods.
+    );
+  }
+
+  Widget employeeTile(Employee employee, context) {
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (context) => EmployeeDetailScreen(employee)));
+      },
+      child: Container(
+        margin: EdgeInsets.symmetric(vertical: 10),
+        child: ListTile(
+          leading: Container(
+            decoration: BoxDecoration(
+                //borderRadius: BorderRadius.circular(50),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.black)),
+            child: CircleAvatar(
+              radius: 50,
+              backgroundImage: NetworkImage(
+                employee.profileImage != null ? employee.profileImage : '',
+                //fit: BoxFit.fill,
+              ),
             ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headline4,
-            ),
-          ],
+          ),
+          title: Column(
+            children: [
+              Text(employee.name != null ? employee.name : 'Anonymous'),
+              Text(employee.company != null && employee.company.name != null
+                  ? employee.company.name
+                  : 'Anonymous'),
+            ],
+          ),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
     );
+  }
+
+  void searchEmployee(String keyword) {
+    _employeeModel.getSearchedEmployees(keyword);
+    _searchTextController.clear();
   }
 }
