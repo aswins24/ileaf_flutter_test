@@ -1,24 +1,30 @@
+import 'package:async_redux/async_redux.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:ileaf_flutter_test/model/employee.dart';
 import 'package:ileaf_flutter_test/provider/employee_model.dart';
+import 'package:ileaf_flutter_test/redux/actions/getEmployees.dart';
+import 'package:ileaf_flutter_test/redux/connector/home_page_connector.dart';
+import 'package:ileaf_flutter_test/redux/state/appState.dart';
 import 'package:ileaf_flutter_test/screens/employee_detail_page.dart';
 import 'package:path/path.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   SystemChrome.setPreferredOrientations(
       [DeviceOrientation.portraitUp, DeviceOrientation.portraitDown]);
   //SharedPreferences _sharedPreferences = await SharedPreferences.getInstance();
 
-  runApp(MultiProvider(providers: [
-    ChangeNotifierProvider(
-      create: (_) => EmployeeModel(),
-    ),
-  ], child: MyApp()));
+  Store store = Store<AppState>(initialState: AppState.initialise());
+  //await store.dispatch(GetEmployees());
+
+  runApp(StoreProvider<AppState>(
+    store: store,
+    child: MyApp(),
+  ));
 }
 
 class MyApp extends StatelessWidget {
@@ -41,13 +47,15 @@ class MyApp extends StatelessWidget {
         // is not restarted.
         primarySwatch: Colors.blue,
       ),
-      home: MyHomePage(title: 'iLeaf Flutter Test'),
+      home: MyHomePageConnector(),
     );
   }
 }
 
 class MyHomePage extends StatefulWidget {
-  MyHomePage({Key key, this.title}) : super(key: key);
+  MyHomePage(
+      {Key key, this.title, this.onSearching, this.employee, this.isLoading})
+      : super(key: key);
 
   // This widget is the home page of your application. It is stateful, meaning
   // that it has a State object (defined below) that contains fields that affect
@@ -60,6 +68,10 @@ class MyHomePage extends StatefulWidget {
 
   final String title;
 
+  final Function onSearching;
+  final List<Employee> employee;
+  final bool isLoading;
+
   @override
   _MyHomePageState createState() => _MyHomePageState();
 }
@@ -67,7 +79,8 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   bool isSearching = false;
   TextEditingController _searchTextController = TextEditingController();
-  EmployeeModel _employeeModel;
+
+  //EmployeeModel _employeeModel;
 
   @override
   void initState() {
@@ -77,7 +90,8 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    _employeeModel = Provider.of<EmployeeModel>(context);
+    //StoreProvider.dispatch<AppState>(context, GetEmployees());
+    //_employeeModel = Provider.of<EmployeeModel>(context);
     // This method is rerun every time setState is called, for instance as done
     // by the _incrementCounter method above.
     //
@@ -85,111 +99,114 @@ class _MyHomePageState extends State<MyHomePage> {
     // fast, so that you can just rebuild anything that needs updating rather
     // than having to individually change instances of widgets.
     return Scaffold(
-      appBar: AppBar(
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-        actions: [
-          if (!isSearching)
-            InkWell(
-              onTap: () {
-                searchEmployee('');
-              },
-              child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 10, horizontal: 20),
-                child: Icon(Icons.refresh),
+        appBar: AppBar(
+          // Here we take the value from the MyHomePage object that was created by
+          // the App.build method, and use it to set our appbar title.
+          title: Text(widget.title),
+          actions: [
+            if (!isSearching)
+              InkWell(
+                onTap: () {
+                  searchEmployee('');
+                },
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 10, horizontal: 20),
+                  child: Icon(Icons.refresh),
+                ),
               ),
-            ),
-          Padding(
-            padding: EdgeInsets.symmetric(vertical: 10, horizontal: 20),
-            child: AnimatedContainer(
-              duration: Duration(milliseconds: 400),
-              decoration: BoxDecoration(
-                  color: isSearching ? Colors.white : Colors.blue,
-                  borderRadius: BorderRadius.circular(20)),
-              width: isSearching ? 200 : 36,
-              height: 36,
-              curve: isSearching ? Curves.easeIn : Curves.bounceOut,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                //mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  Flexible(
-                    child: IconButton(
-                      icon: Icon(
-                        Icons.search,
-                        color: Colors.white,
+            Padding(
+              padding: EdgeInsets.symmetric(vertical: 10, horizontal: 20),
+              child: AnimatedContainer(
+                duration: Duration(milliseconds: 400),
+                decoration: BoxDecoration(
+                    color: isSearching ? Colors.white : Colors.blue,
+                    borderRadius: BorderRadius.circular(20)),
+                width: isSearching ? 200 : 36,
+                height: 36,
+                curve: isSearching ? Curves.easeIn : Curves.bounceOut,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  //mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    Flexible(
+                      child: IconButton(
+                        icon: Icon(
+                          Icons.search,
+                          color: Colors.white,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            isSearching = !isSearching;
+                          });
+                        },
                       ),
-                      onPressed: () {
-                        setState(() {
-                          isSearching = !isSearching;
-                        });
-                      },
                     ),
-                  ),
-                  isSearching
-                      ? Expanded(
-                          flex: 3,
-                          child: TextField(
-                            controller: _searchTextController,
-                            decoration: InputDecoration(
-                                border: InputBorder.none,
-                                contentPadding: EdgeInsets.only(bottom: 10),
-                                hintText: 'Search'),
-                          ),
-                        )
-                      : Container(),
-                  isSearching
-                      ? Flexible(
-                          child: IconButton(
-                            icon: Icon(
-                              Icons.send,
-                              color: Colors.blue,
+                    isSearching
+                        ? Expanded(
+                            flex: 3,
+                            child: TextField(
+                              controller: _searchTextController,
+                              decoration: InputDecoration(
+                                  border: InputBorder.none,
+                                  contentPadding: EdgeInsets.only(bottom: 10),
+                                  hintText: 'Search'),
                             ),
-                            onPressed: () async {
-                              searchEmployee(_searchTextController.text.trim());
-                              FocusScope.of(context).requestFocus(FocusNode());
-                              setState(() {
-                                isSearching = false;
-                              });
-                            },
-                          ),
-                        )
-                      : Container()
-                ],
+                          )
+                        : Container(),
+                    isSearching
+                        ? Flexible(
+                            child: IconButton(
+                              icon: Icon(
+                                Icons.send,
+                                color: Colors.blue,
+                              ),
+                              onPressed: () async {
+                                searchEmployee(
+                                    _searchTextController.text.trim());
+                                FocusScope.of(context)
+                                    .requestFocus(FocusNode());
+                                setState(() {
+                                  isSearching = false;
+                                });
+                              },
+                            ),
+                          )
+                        : Container()
+                  ],
+                ),
               ),
-            ),
-          )
-        ],
-      ),
-      body: Consumer<EmployeeModel>(builder: (context, model, ind) {
-        if (model.isLoading)
-          return Center(
-            child: CircularProgressIndicator(),
-          );
-        if (model.subSetEmployees.isEmpty)
-          return Center(
-            child: Text('Employee List is empty'),
-          );
-        return ListView.separated(
-          itemBuilder: (context, index) {
-            return employeeTile(model.subSetEmployees[index], context);
-          },
-          separatorBuilder: (context, index) => Divider(),
-          itemCount: model.subSetEmployees.length,
+            )
+          ],
+        ),
+        body: widget.isLoading
+            ? Center(
+                child: CircularProgressIndicator(),
+              )
+            : (widget.employee.isEmpty)
+                ? Center(
+                    child: Text('Employee List is empty'),
+                  )
+                : ListView.separated(
+                    itemBuilder: (context, index) {
+                      return employeeTile(widget.employee[index], context);
+                    },
+                    separatorBuilder: (context, index) => Divider(),
+                    itemCount: widget.employee.length,
+                  )
+
+        // This trailing comma makes auto-formatting nicer for build methods.
         );
-      }),
-      // This trailing comma makes auto-formatting nicer for build methods.
-    );
   }
 
   Widget employeeTile(Employee employee, context) {
     return InkWell(
       onTap: () {
         Navigator.push(
-            context,
-            MaterialPageRoute(
-                builder: (context) => EmployeeDetailScreen(employee)));
+          context,
+          MaterialPageRoute(
+            builder: (context) => EmployeeDetailScreen(employee),
+          ),
+        );
       },
       child: Container(
         margin: EdgeInsets.symmetric(vertical: 10),
@@ -221,7 +238,7 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void searchEmployee(String keyword) {
-    _employeeModel.getSearchedEmployees(keyword);
+    widget.onSearching(keyword);
     _searchTextController.clear();
   }
 }

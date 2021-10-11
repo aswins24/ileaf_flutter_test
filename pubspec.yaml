@@ -27,6 +27,7 @@ dependencies:
   path: ^1.8.0
   shared_preferences: ^2.0.6
   provider: ^5.0.0
+  async_redux: ^13.0.4
 
 
 

@@ -58,7 +58,7 @@ class EmployeeDetailScreen extends StatelessWidget {
                             employee.address.geo.lng +
                             ']'),
                     emptyTableRow(),
-                    if (employee.website!= null)
+                    if (employee.website != null)
                       getTableRow('Website', employee.website),
                     emptyTableRow(),
                   ],
